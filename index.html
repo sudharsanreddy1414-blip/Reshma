@@ -39,6 +39,7 @@
     --font-ui: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
     --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
   }
   [data-theme="dark"]{
     --bg: #14151C;
@@ -89,7 +90,7 @@
   header.top{
     position: sticky; top:0; z-index: 20;
     background: var(--bg);
-    padding: 18px 16px 10px;
+    padding: calc(18px + var(--safe-top)) 16px 10px;
     border-bottom: 1px solid transparent;
   }
   header.top.scrolled{ border-bottom-color: var(--border); }
