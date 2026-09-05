@@ -218,21 +218,68 @@
   .empty-state .emoji{ font-size: 34px; display:block; margin-bottom:10px; }
   .empty-state .sub{ font-size: 13.5px; margin-top:4px; }
 
+  /* ============ EXPENSE CALCULATOR ============ */
+  .summary.expense-kpis{ grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 480px){ .summary.expense-kpis{ grid-template-columns: repeat(4, 1fr); } }
+  .summary.expense-kpis .card.top-cat .num{ color: var(--accent); font-size: 15px; }
+  #expenseCategoryInput{
+    border:1px solid var(--border); background: var(--surface-alt); color: var(--text);
+    border-radius: var(--radius-sm); padding: 0 10px; font-size: 14px; min-height: 46px; min-width: 120px;
+  }
+  #expenseAmountInput{
+    flex:1; border:1px solid var(--border); background: var(--surface-alt); color: var(--text);
+    border-radius: var(--radius-sm); padding: 13px 14px; font-size: 15px; min-height: 46px; min-width: 0;
+  }
+  #expenseNoteInput{
+    width:100%; border:1px solid var(--border); background: var(--surface-alt); color: var(--text);
+    border-radius: var(--radius-sm); padding: 11px 14px; font-size: 14px; min-height: 44px;
+  }
+
+  .donut-wrap{ position:relative; width:180px; height:180px; margin: 10px auto 6px; }
+  .donut-chart{ width:100%; height:100%; border-radius:50%; background: var(--surface-alt); transition: background .2s; }
+  .donut-center{
+    position:absolute; inset: 24%; background: var(--surface); border-radius:50%;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow: var(--shadow);
+  }
+  .donut-total{ font-size: 15px; font-weight:700; }
+  .donut-total-label{ font-size: 10.5px; color: var(--text-soft); }
+
+  .expense-legend{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .legend-row{ display:flex; align-items:center; gap:8px; font-size:13px; }
+  .legend-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .legend-name{ flex:1; color: var(--text); }
+  .legend-amount{ font-weight:600; }
+  .legend-pct{ color: var(--text-soft); font-size:12px; width:40px; text-align:right; }
+
+  #expenseList{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+  .expense-card{
+    background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px 14px; box-shadow: var(--shadow); display:flex; gap:12px; align-items:center;
+  }
+  .expense-cat-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .expense-body{ flex:1; min-width:0; }
+  .expense-top{ display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .expense-category{ font-size: 14.5px; font-weight:600; }
+  .expense-amount{ font-size: 15px; font-weight:700; color: var(--accent); flex-shrink:0; }
+  .expense-meta{ display:flex; justify-content:space-between; gap:8px; margin-top:3px; font-size:12.5px; color: var(--text-soft); }
+  .expense-note{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
   /* ============ NAV ============ */
   nav.bottom-nav{
     position: fixed; bottom:0; left:0; right:0; z-index: 30;
     background: var(--surface); border-top: 1px solid var(--border);
     display:flex; justify-content:space-around;
     padding: 8px 4px calc(8px + var(--safe-bottom));
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .nav-item{
     background:none; border:none; color: var(--text-faint); display:flex; flex-direction:column; align-items:center;
-    gap:3px; font-size:10.5px; cursor:pointer; padding:6px 10px; border-radius:10px; min-width:56px;
+    gap:3px; font-size:10px; cursor:pointer; padding:6px 8px; border-radius:10px; min-width:50px; flex-shrink:0;
   }
-  .nav-item .ic{ font-size:19px; }
+  .nav-item .ic{ font-size:18px; }
   .nav-item.active{ color: var(--accent); }
   .nav-item.add .ic{
-    background: var(--accent); color:#fff; width:38px; height:38px; border-radius:50%;
+    background: var(--accent); color:#fff; width:36px; height:36px; border-radius:50%;
     display:flex; align-items:center; justify-content:center; margin-bottom:2px;
   }
 
@@ -360,10 +407,12 @@
     <button class="nav-item" data-nav="tasks"><span class="ic">📋</span>Tasks</button>
     <button class="nav-item add" data-nav="add" aria-label="Add reminder"><span class="ic">➕</span>Add</button>
     <button class="nav-item" data-nav="done"><span class="ic">✓</span>Done</button>
+    <button class="nav-item" data-nav="expenses"><span class="ic">💰</span>Expenses</button>
     <button class="nav-item" data-nav="settings"><span class="ic">⚙</span>Settings</button>
   </nav>
 
   <div class="main-col">
+    <div id="tasksView">
     <section class="summary" aria-label="Task summary">
       <div class="card today"><div class="num" id="statToday">0</div><div class="label">TODAY</div></div>
       <div class="card pending"><div class="num" id="statPending">0</div><div class="label">PENDING</div></div>
@@ -418,6 +467,47 @@
     </section>
 
     <main id="taskList" aria-live="polite"></main>
+    </div>
+
+    <div id="expensesView" style="display:none;">
+      <section class="summary expense-kpis" aria-label="Expense summary">
+        <div class="card today"><div class="num" id="expenseTotalStat">₹0</div><div class="label">TOTAL SPENT</div></div>
+        <div class="card pending"><div class="num" id="expenseMonthStat">₹0</div><div class="label">THIS MONTH</div></div>
+        <div class="card completed"><div class="num" id="expenseCountStat">0</div><div class="label">TRANSACTIONS</div></div>
+        <div class="card top-cat"><div class="num" id="expenseTopCatStat">—</div><div class="label">TOP CATEGORY</div></div>
+      </section>
+
+      <section class="quick-add" aria-label="Add an expense">
+        <label class="qa-label" for="expenseAmountInput">Log a new expense</label>
+        <div class="qa-row">
+          <input id="expenseAmountInput" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount" aria-label="Expense amount">
+          <select id="expenseCategoryInput" aria-label="Expense category"></select>
+        </div>
+        <div class="field full" style="margin-top:10px;">
+          <input id="expenseNoteInput" type="text" placeholder="What was it for? (optional)" aria-label="Expense note">
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" id="addExpenseBtn" style="width:100%;">+ Add Expense</button>
+        </div>
+      </section>
+
+      <section class="quick-add" aria-label="Expense breakdown" id="expenseChartSection">
+        <label class="qa-label">Spending by category</label>
+        <div class="donut-wrap">
+          <div class="donut-chart" id="expenseDonut"></div>
+          <div class="donut-center">
+            <div class="donut-total" id="expenseDonutTotal">₹0</div>
+            <div class="donut-total-label">Total</div>
+          </div>
+        </div>
+        <div id="expenseLegend" class="expense-legend"></div>
+      </section>
+
+      <section class="toolbar" aria-label="Recent expenses">
+        <label class="qa-label" style="margin-bottom:2px;">Recent expenses</label>
+      </section>
+      <main id="expenseList" aria-live="polite"></main>
+    </div>
   </div>
 </div>
 
@@ -654,6 +744,7 @@
 
   let pendingDeleteId = null;
   let pendingDeleteRect = null;
+  let pendingDeleteType = 'task';
 
   /* ============================================================
      STORAGE
@@ -1250,20 +1341,28 @@
   /* ============================================================
      UI EVENTS — delete modal
   ============================================================ */
-  function openDeleteModal(id, rect){
+  function openDeleteModal(id, rect, type){
     pendingDeleteId = id;
     pendingDeleteRect = rect || null;
+    pendingDeleteType = type || 'task';
     openModal('deleteOverlay');
   }
 
   function confirmDelete(){
     if(pendingDeleteId){
-      deleteTask(pendingDeleteId);
+      if(pendingDeleteType === 'expense'){
+        deleteExpense(pendingDeleteId);
+        renderExpensesView();
+        showToast('✓ Expense deleted');
+      }else{
+        deleteTask(pendingDeleteId);
+        renderAll();
+        showToast('💨💨 Reminder deleted');
+        celebrateDeletion(pendingDeleteRect);
+      }
       pendingDeleteId = null;
-      renderAll();
-      showToast('💨💨 Reminder deleted');
-      celebrateDeletion(pendingDeleteRect);
       pendingDeleteRect = null;
+      pendingDeleteType = 'task';
     }
     closeModal('deleteOverlay');
   }
@@ -1483,6 +1582,235 @@
   }
 
   /* ============================================================
+     EXPENSE CALCULATOR — STATE
+  ============================================================ */
+  const EXPENSES_KEY = 'sudharsansExpenseList';
+
+  const EXPENSE_CATEGORIES = [
+    { name: 'Food',          color: '#E14B4B' },
+    { name: 'Transport',     color: '#E0A121' },
+    { name: 'Shopping',      color: '#3E5CE0' },
+    { name: 'Bills',         color: '#1FA971' },
+    { name: 'Entertainment', color: '#7C93FF' },
+    { name: 'Health',        color: '#4FD69C' },
+    { name: 'Education',     color: '#F0C15E' },
+    { name: 'Other',         color: '#9098AC' }
+  ];
+
+  let expenseState = { items: [] };
+
+  function getCategoryColor(name){
+    const found = EXPENSE_CATEGORIES.find(c => c.name === name);
+    return found ? found.color : '#9098AC';
+  }
+
+  function formatCurrency(n){
+    const num = Number(n) || 0;
+    return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  /* ============================================================
+     EXPENSE CALCULATOR — STORAGE
+  ============================================================ */
+  function loadExpenses(){
+    try{
+      const raw = localStorage.getItem(EXPENSES_KEY);
+      if(!raw) return [];
+      const parsed = JSON.parse(raw);
+      if(!Array.isArray(parsed)) return [];
+      return parsed.filter(e => e && typeof e === 'object' && typeof e.amount === 'number');
+    }catch(e){
+      console.warn('Corrupted expense data, starting fresh.', e);
+      return [];
+    }
+  }
+
+  function saveExpenses(){
+    try{
+      localStorage.setItem(EXPENSES_KEY, JSON.stringify(expenseState.items));
+    }catch(e){
+      console.error(e);
+      showToast('⚠ Could not save expense. Storage may be full.');
+    }
+  }
+
+  /* ============================================================
+     EXPENSE CALCULATOR — CRUD
+  ============================================================ */
+  function addExpense(data){
+    const amount = parseFloat(data.amount);
+    if(!amount || amount <= 0){
+      showToast('⚠ Enter a valid amount.');
+      return null;
+    }
+    const expense = {
+      id: makeId(),
+      amount: Math.round(amount * 100) / 100,
+      category: data.category || 'Other',
+      note: (data.note || '').trim(),
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString()
+    };
+    expenseState.items.unshift(expense);
+    saveExpenses();
+    return expense;
+  }
+
+  function deleteExpense(id){
+    expenseState.items = expenseState.items.filter(e => e.id !== id);
+    saveExpenses();
+  }
+
+  /* ============================================================
+     EXPENSE CALCULATOR — RENDERING (KPIs, donut chart, list)
+  ============================================================ */
+  function getCategoryTotals(){
+    const totals = {};
+    expenseState.items.forEach(e => {
+      totals[e.category] = (totals[e.category] || 0) + e.amount;
+    });
+    return totals;
+  }
+
+  function renderExpenseKpis(){
+    const items = expenseState.items;
+    const total = items.reduce((s, e) => s + e.amount, 0);
+    const now = new Date();
+    const monthTotal = items
+      .filter(e => {
+        const d = new Date(e.date + 'T00:00:00');
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((s, e) => s + e.amount, 0);
+
+    const totals = getCategoryTotals();
+    let topCategory = '—';
+    let topAmount = -1;
+    Object.entries(totals).forEach(([cat, amt]) => {
+      if(amt > topAmount){ topAmount = amt; topCategory = cat; }
+    });
+
+    document.getElementById('expenseTotalStat').textContent = formatCurrency(total);
+    document.getElementById('expenseMonthStat').textContent = formatCurrency(monthTotal);
+    document.getElementById('expenseCountStat').textContent = items.length;
+    document.getElementById('expenseTopCatStat').textContent = topCategory;
+  }
+
+  function renderExpenseChart(){
+    const totals = getCategoryTotals();
+    const entries = Object.entries(totals).filter(([, v]) => v > 0);
+    const total = entries.reduce((s, [, v]) => s + v, 0);
+    const donut = document.getElementById('expenseDonut');
+    const legend = document.getElementById('expenseLegend');
+
+    document.getElementById('expenseDonutTotal').textContent = formatCurrency(total);
+
+    if(total <= 0){
+      donut.style.background = 'var(--surface-alt)';
+      legend.innerHTML = '<div class="empty-state" style="padding:16px 0;">No expenses yet. Add one above to see the breakdown.</div>';
+      return;
+    }
+
+    let cumulative = 0;
+    const stops = [];
+    entries.sort((a, b) => b[1] - a[1]);
+    entries.forEach(([cat, val]) => {
+      const color = getCategoryColor(cat);
+      const startPct = (cumulative / total) * 100;
+      cumulative += val;
+      const endPct = (cumulative / total) * 100;
+      stops.push(`${color} ${startPct}% ${endPct}%`);
+    });
+    donut.style.background = `conic-gradient(${stops.join(', ')})`;
+
+    legend.innerHTML = entries.map(([cat, val]) => {
+      const pct = Math.round((val / total) * 100);
+      return `<div class="legend-row">
+        <span class="legend-dot" style="background:${getCategoryColor(cat)}"></span>
+        <span class="legend-name">${escapeHtml(cat)}</span>
+        <span class="legend-amount">${formatCurrency(val)}</span>
+        <span class="legend-pct">${pct}%</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderExpenseList(){
+    const container = document.getElementById('expenseList');
+    const items = expenseState.items;
+    container.innerHTML = '';
+
+    if(items.length === 0){
+      container.innerHTML = `<div class="empty-state">
+        <span class="emoji">💸</span>
+        No expenses yet<div class="sub">Log your first one above.</div>
+      </div>`;
+      return;
+    }
+
+    items.slice(0, 100).forEach(e => {
+      const card = document.createElement('div');
+      card.className = 'expense-card';
+      card.innerHTML = `
+        <span class="expense-cat-dot" style="background:${getCategoryColor(e.category)}"></span>
+        <div class="expense-body">
+          <div class="expense-top">
+            <span class="expense-category">${escapeHtml(e.category)}</span>
+            <span class="expense-amount">${formatCurrency(e.amount)}</span>
+          </div>
+          <div class="expense-meta">
+            <span class="expense-note">${e.note ? escapeHtml(e.note) : ''}</span>
+            <span>${friendlyDate(e.date)}</span>
+          </div>
+        </div>
+        <button class="icon-mini expense-delete-btn" aria-label="Delete expense">🗑️</button>
+      `;
+      card.querySelector('.expense-delete-btn').addEventListener('click', () => openDeleteModal(e.id, null, 'expense'));
+      container.appendChild(card);
+    });
+  }
+
+  function renderExpensesView(){
+    renderExpenseKpis();
+    renderExpenseChart();
+    renderExpenseList();
+  }
+
+  /* ============================================================
+     EXPENSE CALCULATOR — UI EVENTS
+  ============================================================ */
+  function populateExpenseCategorySelect(){
+    const select = document.getElementById('expenseCategoryInput');
+    select.innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+  }
+
+  function handleAddExpense(){
+    const data = {
+      amount: document.getElementById('expenseAmountInput').value,
+      category: document.getElementById('expenseCategoryInput').value,
+      note: document.getElementById('expenseNoteInput').value
+    };
+    const expense = addExpense(data);
+    if(!expense) return;
+    document.getElementById('expenseAmountInput').value = '';
+    document.getElementById('expenseNoteInput').value = '';
+    document.getElementById('expenseAmountInput').focus();
+    renderExpensesView();
+    showToast('✓ Expense added');
+  }
+
+  function setupExpenses(){
+    populateExpenseCategorySelect();
+    expenseState.items = loadExpenses();
+    document.getElementById('addExpenseBtn').addEventListener('click', handleAddExpense);
+    document.getElementById('expenseAmountInput').addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){ e.preventDefault(); handleAddExpense(); }
+    });
+    document.getElementById('expenseNoteInput').addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){ e.preventDefault(); handleAddExpense(); }
+    });
+  }
+
+  /* ============================================================
      PWA INSTALL PROMPT (progressive enhancement)
   ============================================================ */
   let deferredInstallPrompt = null;
@@ -1607,6 +1935,12 @@
   /* ============================================================
      NAVIGATION
   ============================================================ */
+  function setView(view){
+    document.getElementById('tasksView').style.display = view === 'expenses' ? 'none' : '';
+    document.getElementById('expensesView').style.display = view === 'expenses' ? '' : 'none';
+    if(view === 'expenses') renderExpensesView();
+  }
+
   function setupNav(){
     document.getElementById('bottomNav').addEventListener('click', (e) => {
       const btn = e.target.closest('.nav-item');
@@ -1615,7 +1949,15 @@
       btn.classList.add('active');
       const target = btn.dataset.nav;
       const tabMap = { home: 'all', tasks: 'pending', done: 'completed' };
+
+      if(target === 'expenses'){
+        setView('expenses');
+        window.scrollTo({top:0, behavior:'smooth'});
+        return;
+      }
+
       if(target === 'add'){
+        setView('tasks');
         document.getElementById('taskInput').focus();
         window.scrollTo({top:0, behavior:'smooth'});
         return;
@@ -1626,6 +1968,7 @@
         return;
       }
       if(tabMap[target]){
+        setView('tasks');
         state.filter = tabMap[target];
         document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.filter === tabMap[target]));
         renderTaskList();
@@ -1850,6 +2193,7 @@
     setupSettingsEvents();
     setupHelpModal();
     setupInstallPrompt();
+    setupExpenses();
     setupNav();
     setupKeyboardShortcuts();
     setupModalDismiss();
