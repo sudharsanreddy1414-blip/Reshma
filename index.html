@@ -287,6 +287,21 @@
   }
   .toast.show{ opacity:1; transform: translateY(0); }
 
+  /* ============ CELEBRATION CONFETTI ============ */
+  .confetti-layer{
+    position: fixed; inset:0; pointer-events:none; z-index: 500; overflow:hidden;
+  }
+  .confetti-piece{
+    position:absolute; top:0; left:0; transform: translate(-50%,-50%);
+    animation: confettiPop .85s cubic-bezier(.2,.7,.3,1) forwards;
+    will-change: transform, opacity;
+  }
+  @keyframes confettiPop{
+    0%{ transform: translate(-50%,-50%) translate(0,0) rotate(0deg) scale(1); opacity:1; }
+    70%{ opacity:1; }
+    100%{ transform: translate(-50%,-50%) translate(var(--dx), calc(var(--dy) + 170px)) rotate(var(--rot)) scale(.5); opacity:0; }
+  }
+
   /* ============ WELCOME ============ */
   .welcome-emoji{ font-size: 40px; }
 
@@ -818,9 +833,22 @@
         </div>
       `;
 
-      card.querySelector('.checkbox').addEventListener('click', () => { toggleComplete(t.id); renderAll(); });
+      card.querySelector('.checkbox').addEventListener('click', (e) => {
+        const willComplete = !t.completed;
+        const rect = e.currentTarget.getBoundingClientRect();
+        toggleComplete(t.id);
+        renderAll();
+        if(willComplete) celebrateCompletion(rect);
+      });
       card.querySelector('.checkbox').addEventListener('keydown', (e) => {
-        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleComplete(t.id); renderAll(); }
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          const willComplete = !t.completed;
+          const rect = e.currentTarget.getBoundingClientRect();
+          toggleComplete(t.id);
+          renderAll();
+          if(willComplete) celebrateCompletion(rect);
+        }
       });
       card.querySelector('.edit-btn').addEventListener('click', () => openEditModal(t.id));
       card.querySelector('.delete-btn').addEventListener('click', () => openDeleteModal(t.id));
@@ -1082,6 +1110,8 @@
     document.getElementById('taskInput').focus();
     renderAll();
     showToast('✓ Reminder added');
+    playAddSound();
+    speak('Task added');
   }
 
   function setupQuickAdd(){
@@ -1172,6 +1202,107 @@
       toast.classList.remove('show');
       setTimeout(() => toast.remove(), 250);
     }, 2200);
+  }
+
+  /* ============================================================
+     SOUND & VOICE FEEDBACK
+  ============================================================ */
+  let audioCtx = null;
+
+  function getAudioCtx(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ return null; }
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  }
+
+  function playNote(ctx, freq, startTime, duration, peak){
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(peak || 0.22, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.03);
+  }
+
+  function playAddSound(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const now = ctx.currentTime;
+    playNote(ctx, 660, now, 0.10, 0.18);
+    playNote(ctx, 880, now + 0.08, 0.14, 0.18);
+  }
+
+  function playCompleteSound(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // rising C-E-G-C fanfare
+    notes.forEach((f, i) => playNote(ctx, f, now + i * 0.09, 0.18, 0.2));
+  }
+
+  function speak(text){
+    if(!('speechSynthesis' in window)) return;
+    try{
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.05;
+      utter.pitch = 1.05;
+      utter.volume = 0.85;
+      window.speechSynthesis.speak(utter);
+    }catch(e){ console.warn('Speech feedback unavailable', e); }
+  }
+
+  /* ============================================================
+     CELEBRATION CONFETTI (pops & bangs on task completion)
+  ============================================================ */
+  const CONFETTI_COLORS = ['#3E5CE0','#1FA971','#E0A121','#E14B4B','#7C93FF','#4FD69C','#F0C15E'];
+
+  function spawnConfetti(originRect){
+    const originX = originRect ? originRect.left + originRect.width / 2 : window.innerWidth / 2;
+    const originY = originRect ? originRect.top + originRect.height / 2 : window.innerHeight / 3;
+
+    const layer = document.createElement('div');
+    layer.className = 'confetti-layer';
+    document.body.appendChild(layer);
+
+    const count = 30;
+    for(let i = 0; i < count; i++){
+      const piece = document.createElement('span');
+      const size = 6 + Math.random() * 7;
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 70 + Math.random() * 150;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance - 30;
+      const rotate = (Math.random() * 720 - 360) + 'deg';
+      const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+
+      piece.className = 'confetti-piece';
+      piece.style.left = originX + 'px';
+      piece.style.top = originY + 'px';
+      piece.style.width = size + 'px';
+      piece.style.height = size + 'px';
+      piece.style.background = color;
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      piece.style.setProperty('--dx', dx + 'px');
+      piece.style.setProperty('--dy', dy + 'px');
+      piece.style.setProperty('--rot', rotate);
+      layer.appendChild(piece);
+    }
+
+    setTimeout(() => layer.remove(), 950);
+  }
+
+  function celebrateCompletion(originRect){
+    playCompleteSound();
+    speak('Task completed');
+    spawnConfetti(originRect);
   }
 
   /* ============================================================
