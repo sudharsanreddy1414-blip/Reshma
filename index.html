@@ -348,7 +348,10 @@
         <h1 id="appTitle">Sudharsan's To-Do List</h1>
         <p id="appSubtitle">Remember everything. Forget nothing.</p>
       </div>
-      <button class="icon-btn" id="settingsBtn" aria-label="Open settings">⚙</button>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button class="icon-btn" id="helpBtn" aria-label="Help and instructions" style="font-size:16px; font-weight:700;">?</button>
+        <button class="icon-btn" id="settingsBtn" aria-label="Open settings">⚙</button>
+      </div>
     </div>
   </header>
 
@@ -554,6 +557,71 @@
     </div>
 
     <button class="btn btn-primary" id="closeSettingsBtn" style="width:100%; justify-content:center;">Done</button>
+  </div>
+</div>
+
+<!-- Help / How-To modal -->
+<div class="modal-overlay" id="helpOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">Help &amp; Tips</h2>
+    <p class="modal-sub">Everything you need to know to get the most out of this app.</p>
+
+    <div class="settings-section">
+      <h3>📲 Install as an App</h3>
+      <p style="font-size:13.5px; color:var(--text-soft); margin:0 0 10px;">Installing puts the icon on your home screen and opens it full-screen, without the browser bar.</p>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:600; font-size:13.5px; margin-bottom:4px;">On iPhone / iPad (Safari)</div>
+        <ol style="margin:0; padding-left:18px; font-size:13.5px; color:var(--text-soft); line-height:1.7;">
+          <li>Open this file in <strong>Safari</strong> (not Chrome).</li>
+          <li>Tap the <strong>Share</strong> icon (square with an arrow) in the toolbar.</li>
+          <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+          <li>Tap <strong>Add</strong> — the icon now appears on your home screen.</li>
+        </ol>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <div style="font-weight:600; font-size:13.5px; margin-bottom:4px;">On Android (Chrome)</div>
+        <ol style="margin:0; padding-left:18px; font-size:13.5px; color:var(--text-soft); line-height:1.7;">
+          <li>Open this file in <strong>Chrome</strong>.</li>
+          <li>Tap the <strong>⋮</strong> menu in the top-right corner.</li>
+          <li>Tap <strong>"Add to Home screen"</strong> or <strong>"Install app"</strong> (wording varies by Chrome version).</li>
+          <li>Confirm — the icon is added to your home screen or app drawer.</li>
+        </ol>
+      </div>
+
+      <button class="btn btn-primary" id="installNowBtn" style="width:100%; justify-content:center; display:none; margin-top:6px;">📲 Install Now</button>
+
+      <div style="background:var(--surface-alt); border-radius:var(--radius-sm); padding:10px 12px; margin-top:10px;">
+        <div style="font-weight:600; font-size:12.5px; margin-bottom:3px;">⚠ Some Android phones can't show "Install"</div>
+        <p style="margin:0; font-size:12.5px; color:var(--text-soft); line-height:1.6;">
+          Android's Chrome only offers a full app install when a page is opened from a secure <strong>https://</strong> web address — not when it's opened directly as a local file. If "Install app" is missing, either:
+        </p>
+        <ul style="margin:6px 0 0; padding-left:16px; font-size:12.5px; color:var(--text-soft); line-height:1.6;">
+          <li>Use <strong>"Add to Home screen"</strong> from the ⋮ menu instead — it still creates a working icon shortcut, or</li>
+          <li>Upload this file to a free host (like GitHub Pages, Netlify, or Vercel) and open that https:// link in Chrome for the full install prompt.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>✏️ Change the App Name</h3>
+      <p style="font-size:13.5px; color:var(--text-soft); line-height:1.6; margin:0;">
+        Open <strong>⚙ Settings → App Name</strong>. Edit the <strong>Title</strong> and <strong>Subtitle</strong> fields — changes apply instantly on this device. If you've already installed the app to your home screen, remove the old icon and reinstall it afterward so the new name and icon are picked up.
+      </p>
+    </div>
+
+    <div class="settings-section" style="margin-bottom:0;">
+      <h3>💡 Quick Tips</h3>
+      <ul style="margin:0; padding-left:18px; font-size:13.5px; color:var(--text-soft); line-height:1.7;">
+        <li>Type a reminder and hit <strong>Enter</strong> — no need to fill in extra fields.</li>
+        <li><strong>Ctrl/Cmd + K</strong> jumps to search, <strong>Ctrl/Cmd + N</strong> jumps to the input box.</li>
+        <li>Your tasks are saved only on this device (Local Storage) unless you set up Google Sheets sync in Settings.</li>
+        <li>Use <strong>Export Tasks</strong> in Settings regularly to keep a backup file.</li>
+      </ul>
+    </div>
+
+    <button class="btn btn-primary" id="closeHelpBtn" style="width:100%; justify-content:center; margin-top:16px;">Got it</button>
   </div>
 </div>
 
@@ -1414,6 +1482,52 @@
     applyTheme();
   }
 
+  /* ============================================================
+     PWA INSTALL PROMPT (progressive enhancement)
+  ============================================================ */
+  let deferredInstallPrompt = null;
+
+  function updateInstallButtonVisibility(){
+    const btn = document.getElementById('installNowBtn');
+    if(!btn) return;
+    btn.style.display = deferredInstallPrompt ? 'flex' : 'none';
+  }
+
+  function setupInstallPrompt(){
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      updateInstallButtonVisibility();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      updateInstallButtonVisibility();
+      showToast('✓ App installed');
+    });
+
+    document.getElementById('installNowBtn').addEventListener('click', async () => {
+      if(!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch(e){}
+      deferredInstallPrompt = null;
+      updateInstallButtonVisibility();
+    });
+
+    updateInstallButtonVisibility();
+  }
+
+  /* ============================================================
+     HELP / HOW-TO MODAL
+  ============================================================ */
+  function setupHelpModal(){
+    document.getElementById('helpBtn').addEventListener('click', () => {
+      updateInstallButtonVisibility();
+      openModal('helpOverlay');
+    });
+    document.getElementById('closeHelpBtn').addEventListener('click', () => closeModal('helpOverlay'));
+  }
+
   function setupSettingsEvents(){
     document.getElementById('settingsBtn').addEventListener('click', () => { renderSettingsPanel(); openModal('settingsOverlay'); });
     document.getElementById('closeSettingsBtn').addEventListener('click', () => closeModal('settingsOverlay'));
@@ -1734,6 +1848,8 @@
     setupFilterTabs();
     setupSearchSort();
     setupSettingsEvents();
+    setupHelpModal();
+    setupInstallPrompt();
     setupNav();
     setupKeyboardShortcuts();
     setupModalDismiss();
