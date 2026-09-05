@@ -250,6 +250,8 @@
     .modal-overlay{ align-items:center; }
     .modal{ border-radius: var(--radius-lg); }
   }
+  .modal-overlay.center-modal{ align-items:center; padding: 0 20px; }
+  .modal-overlay.center-modal .modal{ border-radius: var(--radius-lg); max-width: 420px; }
   .modal h2{ font-size: 19px; margin-bottom: 4px; }
   .modal .modal-sub{ color: var(--text-soft); font-size: 13.5px; margin-bottom: 16px; }
   .modal .field{ margin-bottom: 12px; }
@@ -400,6 +402,17 @@
       <h2 id="welcomeTitle" style="margin-top:10px;">Welcome to <span id="welcomeAppName">Reshma's To-Do List</span></h2>
       <p class="modal-sub">Whenever you see something you don't want to forget, just put it here. Your reminders stay saved on this device.</p>
       <button class="btn btn-primary" id="getStartedBtn" style="width:100%; justify-content:center;">Get Started</button>
+    </div>
+  </div>
+</div>
+
+<!-- Motivation modal -->
+<div class="modal-overlay center-modal" id="motivationOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="motivationQuote">
+    <div style="text-align:center;">
+      <span class="welcome-emoji" id="motivationEmoji">✨</span>
+      <p class="modal-sub" id="motivationQuote" style="font-size:16px; line-height:1.55; color:var(--text); margin: 14px 0 4px;"></p>
+      <button class="btn btn-primary" id="motivationGoBtn" style="width:100%; justify-content:center; margin-top:16px;">Let's go</button>
     </div>
   </div>
 </div>
@@ -1333,6 +1346,131 @@
   }
 
   /* ============================================================
+     MOTIVATION POPUP — "Load Maximum Motivation"
+  ============================================================ */
+  const LAST_QUOTE_KEY = 'reshmasTodoLastQuoteIdx';
+
+  const MOTIVATION_QUOTES = [
+    "Small steps, done consistently, beat big plans that never start.",
+    "You don't need to feel ready. You just need to begin.",
+    "One task at a time. That's how everything gets finished.",
+    "Progress hides in the boring, unglamorous stuff you keep putting off.",
+    "The list only feels heavy until you start crossing things off.",
+    "Future you is counting on the choices you make right now.",
+    "Discipline is just remembering what you actually want.",
+    "You've handled hard days before. This one is no different.",
+    "Clarity comes from doing, not from waiting to feel motivated.",
+    "A finished small task beats a perfect plan that stays on paper.",
+    "Momentum is built one checked box at a time.",
+    "You don't have to see the whole staircase, just take the next step.",
+    "Tired is fine. Quitting isn't the only option when tired.",
+    "The work you avoid rarely gets smaller by waiting.",
+    "Show up today. That's the whole secret, repeated daily.",
+    "Every checklist you finish is proof you can finish the next one.",
+    "Start messy. You can fix messy. You can't fix nothing.",
+    "Nobody remembers the slow starts, only the finished results.",
+    "Your only job right now is the next single item, not all of them.",
+    "Rest when you need to, but don't let 'later' quietly become 'never'.",
+    "The best time to start was earlier. The next best time is now.",
+    "You're not behind. You're exactly where your next step begins.",
+    "Consistency turns ordinary effort into extraordinary results.",
+    "Doing something imperfectly beats doing nothing perfectly.",
+    "Every big goal is just a to-do list wearing a bigger name.",
+    "Focus on today's list. Tomorrow will bring its own.",
+    "You've already remembered it — now go make it happen.",
+    "Confidence grows in the space between deciding and finishing.",
+    "One honest hour of work outruns a week of good intentions.",
+    "Whatever's on your list, you're more capable of it than you think.",
+    "A task written down is already halfway to being done.",
+    "You don't rise to your goals, you fall to your habits — build good ones.",
+    "The hardest part is opening the app. You already did that.",
+    "Nothing gets done in your head. It gets done on the list, then in your hands.",
+    "You're allowed to go slow. You're not allowed to stop remembering why you started.",
+    "Every completed task is a small vote for the person you're becoming.",
+    "It's not about having time. It's about making the next ten minutes count.",
+    "The list doesn't judge you for being behind. It just waits for your next move.",
+    "Done is better than perfect, and perfect rarely gets done anyway.",
+    "You handled yesterday's list. Today's isn't any heavier.",
+    "A cluttered mind clears the moment you write the thing down.",
+    "Some days you check boxes. Other days you just survive them. Both count.",
+    "Your energy follows your attention — point it at one task at a time.",
+    "The gap between wanting and having is almost always just starting.",
+    "Small wins stack quietly until one day they're a completely different life.",
+    "You don't need motivation to begin. Beginning is what creates motivation.",
+    "Whatever you're avoiding is probably smaller than the dread around it.",
+    "Nobody finishes a to-do list. They just keep choosing what matters next.",
+    "Today's effort is a letter to the person you'll be next week.",
+    "You've forgotten things before. Not this time — it's already written down.",
+    "Being tired and being done are two different things. Keep going gently.",
+    "The task you keep pushing down the list is usually the one worth doing first.",
+    "Clarity is a byproduct of action, not something you wait around for.",
+    "One line crossed off is proof the day wasn't wasted.",
+    "You are not your unfinished list. You're the person steadily working through it.",
+    "Discipline feels heavy in the morning and light by the evening.",
+    "The best plan is the one you actually start, not the one you keep polishing.",
+    "Every reminder saved here is one less thing weighing on your mind.",
+    "Effort compounds quietly, the same way debt or dust does — pick your direction.",
+    "You don't need a perfect week. You need one good next hour.",
+    "Whatever's overdue isn't a verdict on you, it's just next in line.",
+    "Momentum doesn't ask for motivation, it just asks you to move once more.",
+    "The version of you a year from now was built by days exactly like this one.",
+    "You're not starting over. You're continuing, with better information.",
+    "Progress rarely feels dramatic while it's happening — it just adds up.",
+    "A short task done now beats a big task done never.",
+    "The list is a map, not a mountain. Walk it one step at a time.",
+    "You get to decide what today counts as a win.",
+    "Half the battle is just deciding to look at the list instead of away from it.",
+    "Consistency is quieter than intensity, and it wins more often.",
+    "Your future self is grateful every time present you finishes something.",
+    "Doubt shrinks the moment you start moving your hands.",
+    "It's okay to reorder the list. It's not okay to abandon it.",
+    "The task looks bigger in your head than it does once you begin it.",
+    "You've kept promises to other people. Keep this one to yourself too.",
+    "A calm mind gets more done than a rushed one — breathe, then begin.",
+    "Every checklist is really just a list of small brave decisions.",
+    "You don't have to want to do it. You just have to do it anyway.",
+    "The best reminder system is the one you actually open — and here you are.",
+    "Struggling with a task doesn't mean you're failing at it, it means you're doing it.",
+    "One finished thing changes the tone of the whole day.",
+    "You are allowed to rest without quitting.",
+    "The list gets lighter the moment you stop carrying it only in your head.",
+    "Today doesn't need to be your best day, just an honest one.",
+    "Nobody sees the small tasks you finish quietly — but they add up to everything.",
+    "Waiting to feel ready is its own kind of procrastination.",
+    "You've already remembered the hard part. Doing it is the easy part now.",
+    "Every item you clear makes room for something that actually matters.",
+    "The work you do when no one's watching is the work that builds you.",
+    "Start where you are, with what you have, on the task in front of you."
+  ];
+
+  const MOTIVATION_EMOJIS = ['✨','💪','🔥','🌱','🚀','🎯','⚡','🌟'];
+
+  function pickMotivationQuote(){
+    let lastIdx = parseInt(localStorage.getItem(LAST_QUOTE_KEY), 10);
+    let idx;
+    if(MOTIVATION_QUOTES.length <= 1){
+      idx = 0;
+    }else{
+      do{ idx = Math.floor(Math.random() * MOTIVATION_QUOTES.length); }
+      while(idx === lastIdx);
+    }
+    try{ localStorage.setItem(LAST_QUOTE_KEY, String(idx)); }catch(e){}
+    return MOTIVATION_QUOTES[idx];
+  }
+
+  function showMotivationPopup(){
+    const quote = pickMotivationQuote();
+    const emoji = MOTIVATION_EMOJIS[Math.floor(Math.random() * MOTIVATION_EMOJIS.length)];
+    document.getElementById('motivationEmoji').textContent = emoji;
+    document.getElementById('motivationQuote').textContent = quote;
+    openModal('motivationOverlay');
+  }
+
+  function setupMotivationPopup(){
+    document.getElementById('motivationGoBtn').addEventListener('click', () => closeModal('motivationOverlay'));
+  }
+
+  /* ============================================================
      FIRST RUN / WELCOME
   ============================================================ */
   function setupWelcome(){
@@ -1342,6 +1480,7 @@
       localStorage.setItem(FIRST_RUN_KEY, '1');
       closeModal('welcomeOverlay');
       document.getElementById('taskInput').focus();
+      setTimeout(showMotivationPopup, 300);
     });
   }
 
@@ -1374,10 +1513,17 @@
     setupKeyboardShortcuts();
     setupModalDismiss();
     setupHeaderScroll();
+    setupMotivationPopup();
     setupWelcome();
 
     renderAll();
     rescheduleAllNotifications();
+
+    // Returning users get a fresh motivation popup on every open.
+    // First-time users get theirs right after the welcome modal (see setupWelcome).
+    if(localStorage.getItem(FIRST_RUN_KEY)){
+      setTimeout(showMotivationPopup, 350);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
