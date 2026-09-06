@@ -186,10 +186,32 @@
 
   /* ============ TASK LIST ============ */
   #taskList{ display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+
+  /* --- Weekly productivity chart --- */
+  .week-chart{ display:flex; align-items:flex-end; gap:6px; height:86px; }
+  .week-bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .week-count{ font-size:10px; color: var(--text-soft); min-height:12px; margin-bottom:2px; }
+  .week-bar{ width:100%; max-width:24px; min-height:5px; background: var(--accent); border-radius:6px 6px 3px 3px; transition: height .3s ease; }
+  .week-bar.today{ background: var(--success); }
+  .week-label{ font-size:10.5px; color: var(--text-soft); margin-top:5px; }
+
+  /* --- Swipe-to-complete / swipe-to-delete --- */
+  .task-swipe-wrapper{ position:relative; border-radius: var(--radius-md); overflow:hidden; }
+  .swipe-bg{ position:absolute; inset:0; display:flex; border-radius: var(--radius-md); overflow:hidden; }
+  .swipe-bg .swipe-complete{
+    flex:1; background: var(--success-soft); color: var(--success); font-size:20px; font-weight:700;
+    display:flex; align-items:center; justify-content:flex-start; padding-left:26px;
+  }
+  .swipe-bg .swipe-delete{
+    flex:1; background: var(--danger-soft); color: var(--danger); font-size:20px; font-weight:700;
+    display:flex; align-items:center; justify-content:flex-end; padding-right:26px;
+  }
   .task-card{
     background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-md);
     padding: 13px 14px; box-shadow: var(--shadow); display:flex; gap:12px; align-items:flex-start;
+    position:relative; z-index:1; touch-action: pan-y; user-select:none;
   }
+  .task-card.snap{ transition: transform .25s ease; }
   .task-card.overdue{ border-color: var(--danger); }
   .checkbox{
     width:24px; height:24px; border-radius:7px; border:2px solid var(--border); flex-shrink:0;
@@ -429,6 +451,14 @@
       <div class="card today"><div class="num" id="statToday">0</div><div class="label">TODAY</div></div>
       <div class="card pending"><div class="num" id="statPending">0</div><div class="label">PENDING</div></div>
       <div class="card completed"><div class="num" id="statCompleted">0</div><div class="label">COMPLETED</div></div>
+    </section>
+
+    <section class="quick-add" aria-label="Productivity streak">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <label class="qa-label" style="margin-bottom:0;">🔥 Productivity</label>
+        <span id="streakBadge" style="font-weight:700; color:var(--accent); font-size:13.5px;">0-day streak</span>
+      </div>
+      <div class="week-chart" id="weekChart"></div>
     </section>
 
     <section class="quick-add" aria-label="Add a reminder">
@@ -1000,6 +1030,11 @@
 
     list.forEach(t => {
       const overdue = isOverdue(t);
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'task-swipe-wrapper';
+      wrapper.innerHTML = `<div class="swipe-bg"><span class="swipe-complete">✓</span><span class="swipe-delete">🗑</span></div>`;
+
       const card = document.createElement('div');
       card.className = 'task-card' + (t.completed ? ' completed' : '') + (overdue ? ' overdue' : '');
 
@@ -1049,12 +1084,141 @@
         openDeleteModal(t.id, rect);
       });
 
-      container.appendChild(card);
+      attachSwipeHandlers(card, t);
+
+      wrapper.appendChild(card);
+      container.appendChild(wrapper);
     });
+  }
+
+  /* ============================================================
+     SWIPE GESTURES — swipe right to complete, swipe left to delete
+  ============================================================ */
+  function attachSwipeHandlers(card, task){
+    const THRESHOLD = 78;
+    const MAX_DRAG = 120;
+    let startX = 0, startY = 0, currentX = 0;
+    let dragging = false, decided = false, isHorizontal = false;
+
+    card.addEventListener('pointerdown', (e) => {
+      if(e.target.closest('button, .checkbox')) return;
+      if(e.pointerType === 'mouse' && e.button !== 0) return;
+      dragging = true; decided = false; isHorizontal = false;
+      startX = e.clientX; startY = e.clientY; currentX = 0;
+      card.classList.remove('snap');
+      try{ card.setPointerCapture(e.pointerId); }catch(err){}
+    });
+
+    card.addEventListener('pointermove', (e) => {
+      if(!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if(!decided){
+        if(Math.abs(dx) > 6 || Math.abs(dy) > 6){
+          decided = true;
+          isHorizontal = Math.abs(dx) > Math.abs(dy);
+        }else{
+          return;
+        }
+      }
+      if(!isHorizontal) return;
+      e.preventDefault();
+      currentX = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dx));
+      card.style.transform = `translateX(${currentX}px)`;
+    });
+
+    function endDrag(){
+      if(!dragging) return;
+      dragging = false;
+      card.classList.add('snap');
+      const dx = currentX;
+      currentX = 0;
+      card.style.transform = 'translateX(0px)';
+
+      if(isHorizontal && dx > THRESHOLD){
+        const willComplete = !task.completed;
+        const rect = card.getBoundingClientRect();
+        toggleComplete(task.id);
+        renderAll();
+        if(willComplete) celebrateCompletion(rect);
+      }else if(isHorizontal && dx < -THRESHOLD){
+        const rect = card.getBoundingClientRect();
+        openDeleteModal(task.id, rect, 'task');
+      }
+      setTimeout(() => card.classList.remove('snap'), 260);
+    }
+
+    card.addEventListener('pointerup', endDrag);
+    card.addEventListener('pointercancel', endDrag);
+  }
+
+  /* ============================================================
+     PRODUCTIVITY STREAK & WEEKLY CHART
+  ============================================================ */
+  function toLocalDateStr(dateInput){
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function getCompletionDatesSet(){
+    const set = new Set();
+    state.tasks.forEach(t => {
+      if(t.completed && t.completedAt) set.add(toLocalDateStr(t.completedAt));
+    });
+    return set;
+  }
+
+  function computeStreak(){
+    const dates = getCompletionDatesSet();
+    let d = new Date();
+    if(!dates.has(toLocalDateStr(d))){
+      d.setDate(d.getDate() - 1); // today has no completion yet — see if the streak continues from yesterday
+    }
+    let streak = 0;
+    while(dates.has(toLocalDateStr(d))){
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function getWeeklyCompletionCounts(){
+    const days = [];
+    for(let i = 6; i >= 0; i--){
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = toLocalDateStr(d);
+      const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const count = state.tasks.filter(t => t.completed && t.completedAt && toLocalDateStr(t.completedAt) === key).length;
+      days.push({ key, label, count });
+    }
+    return days;
+  }
+
+  function renderProductivity(){
+    const streak = computeStreak();
+    document.getElementById('streakBadge').textContent = `${streak}-day streak`;
+
+    const days = getWeeklyCompletionCounts();
+    const maxCount = Math.max(1, ...days.map(d => d.count));
+    const todayKey = toLocalDateStr(new Date());
+
+    document.getElementById('weekChart').innerHTML = days.map(d => {
+      const heightPct = d.count > 0 ? Math.max(10, Math.round((d.count / maxCount) * 100)) : 4;
+      return `<div class="week-bar-col">
+        <div class="week-count">${d.count > 0 ? d.count : ''}</div>
+        <div class="week-bar ${d.key === todayKey ? 'today' : ''}" style="height:${heightPct}%"></div>
+        <div class="week-label">${d.label}</div>
+      </div>`;
+    }).join('');
   }
 
   function renderAll(){
     renderStats();
+    renderProductivity();
     renderTaskList();
   }
 
