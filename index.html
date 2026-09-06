@@ -251,6 +251,18 @@
   .legend-amount{ font-weight:600; }
   .legend-pct{ color: var(--text-soft); font-size:12px; width:40px; text-align:right; }
 
+  #monthlyBreakdownList{ max-height: 230px; overflow-y: auto; }
+  .month-row{
+    width:100%; display:flex; justify-content:space-between; align-items:center; gap:10px;
+    background: var(--surface-alt); border:1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 11px 13px; font-size:13.5px; cursor:pointer; margin-bottom:8px; color: var(--text); text-align:left;
+  }
+  .month-row:last-child{ margin-bottom:0; }
+  .month-row.active{ border-color: var(--accent); background: var(--accent-soft); }
+  .month-label{ font-weight:600; }
+  .month-count{ color: var(--text-soft); font-size:12px; margin-left:6px; }
+  .month-amount{ font-weight:700; color: var(--accent); flex-shrink:0; }
+
   #expenseList{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
   .expense-card{
     background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-md);
@@ -491,8 +503,17 @@
         </div>
       </section>
 
+      <section class="quick-add" aria-label="Monthly breakdown">
+        <label class="qa-label">Monthly breakdown</label>
+        <p style="font-size:12.5px; color:var(--text-soft); margin:-4px 0 10px;">Tap a month to see just that month below. Tap it again to view all time.</p>
+        <div id="monthlyBreakdownList"></div>
+      </section>
+
       <section class="quick-add" aria-label="Expense breakdown" id="expenseChartSection">
-        <label class="qa-label">Spending by category</label>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <label class="qa-label" id="expenseChartTitle" style="margin-bottom:0;">Spending by category — All Time</label>
+          <button class="btn-text" id="clearMonthFilterBtn" style="display:none; white-space:nowrap;">View All</button>
+        </div>
         <div class="donut-wrap">
           <div class="donut-chart" id="expenseDonut"></div>
           <div class="donut-center">
@@ -504,7 +525,7 @@
       </section>
 
       <section class="toolbar" aria-label="Recent expenses">
-        <label class="qa-label" style="margin-bottom:2px;">Recent expenses</label>
+        <label class="qa-label" style="margin-bottom:2px;" id="expenseListTitle">Recent expenses</label>
       </section>
       <main id="expenseList" aria-live="polite"></main>
     </div>
@@ -1597,11 +1618,26 @@
     { name: 'Other',         color: '#9098AC' }
   ];
 
-  let expenseState = { items: [] };
+  let expenseState = { items: [], monthFilter: null };
 
   function getCategoryColor(name){
     const found = EXPENSE_CATEGORIES.find(c => c.name === name);
     return found ? found.color : '#9098AC';
+  }
+
+  function getMonthKey(dateStr){
+    return dateStr.slice(0, 7); // 'YYYY-MM'
+  }
+
+  function getMonthLabel(monthKey){
+    const [y, m] = monthKey.split('-').map(Number);
+    const d = new Date(y, m - 1, 1);
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  function getFilteredExpenses(){
+    if(!expenseState.monthFilter) return expenseState.items;
+    return expenseState.items.filter(e => getMonthKey(e.date) === expenseState.monthFilter);
   }
 
   function formatCurrency(n){
@@ -1662,12 +1698,23 @@
   }
 
   /* ============================================================
-     EXPENSE CALCULATOR — RENDERING (KPIs, donut chart, list)
+     EXPENSE CALCULATOR — RENDERING (KPIs, monthly breakdown, donut chart, list)
   ============================================================ */
-  function getCategoryTotals(){
+  function getCategoryTotals(items){
+    const totals = {};
+    (items || expenseState.items).forEach(e => {
+      totals[e.category] = (totals[e.category] || 0) + e.amount;
+    });
+    return totals;
+  }
+
+  function getMonthlyTotals(){
     const totals = {};
     expenseState.items.forEach(e => {
-      totals[e.category] = (totals[e.category] || 0) + e.amount;
+      const key = getMonthKey(e.date);
+      if(!totals[key]) totals[key] = { amount: 0, count: 0 };
+      totals[key].amount += e.amount;
+      totals[key].count += 1;
     });
     return totals;
   }
@@ -1683,7 +1730,7 @@
       })
       .reduce((s, e) => s + e.amount, 0);
 
-    const totals = getCategoryTotals();
+    const totals = getCategoryTotals(items);
     let topCategory = '—';
     let topAmount = -1;
     Object.entries(totals).forEach(([cat, amt]) => {
@@ -1696,18 +1743,47 @@
     document.getElementById('expenseTopCatStat').textContent = topCategory;
   }
 
+  function renderMonthlyBreakdown(){
+    const container = document.getElementById('monthlyBreakdownList');
+    const totals = getMonthlyTotals();
+    const keys = Object.keys(totals).sort().reverse();
+
+    if(keys.length === 0){
+      container.innerHTML = '<div class="empty-state" style="padding:16px 0;">No monthly data yet. Add an expense to see months here.</div>';
+      return;
+    }
+
+    container.innerHTML = keys.map(key => {
+      const active = expenseState.monthFilter === key;
+      const data = totals[key];
+      return `<button type="button" class="month-row ${active ? 'active' : ''}" data-month="${key}">
+        <span class="month-label">${getMonthLabel(key)}<span class="month-count">${data.count} item${data.count === 1 ? '' : 's'}</span></span>
+        <span class="month-amount">${formatCurrency(data.amount)}</span>
+      </button>`;
+    }).join('');
+  }
+
   function renderExpenseChart(){
-    const totals = getCategoryTotals();
+    const filtered = getFilteredExpenses();
+    const totals = getCategoryTotals(filtered);
     const entries = Object.entries(totals).filter(([, v]) => v > 0);
     const total = entries.reduce((s, [, v]) => s + v, 0);
     const donut = document.getElementById('expenseDonut');
     const legend = document.getElementById('expenseLegend');
+    const title = document.getElementById('expenseChartTitle');
+    const clearBtn = document.getElementById('clearMonthFilterBtn');
+    const listTitle = document.getElementById('expenseListTitle');
+
+    const scopeLabel = expenseState.monthFilter ? getMonthLabel(expenseState.monthFilter) : 'All Time';
+    title.textContent = `Spending by category — ${scopeLabel}`;
+    listTitle.textContent = expenseState.monthFilter ? `Expenses — ${scopeLabel}` : 'Recent expenses';
+    clearBtn.style.display = expenseState.monthFilter ? 'inline-flex' : 'none';
 
     document.getElementById('expenseDonutTotal').textContent = formatCurrency(total);
 
     if(total <= 0){
       donut.style.background = 'var(--surface-alt)';
-      legend.innerHTML = '<div class="empty-state" style="padding:16px 0;">No expenses yet. Add one above to see the breakdown.</div>';
+      legend.innerHTML = `<div class="empty-state" style="padding:16px 0;">No expenses ${expenseState.monthFilter ? 'in ' + scopeLabel : 'yet'}. ${expenseState.monthFilter ? '' : 'Add one above to see the breakdown.'}</div>`;
       return;
     }
 
@@ -1736,13 +1812,14 @@
 
   function renderExpenseList(){
     const container = document.getElementById('expenseList');
-    const items = expenseState.items;
+    const items = getFilteredExpenses();
     container.innerHTML = '';
 
     if(items.length === 0){
+      const scopeLabel = expenseState.monthFilter ? getMonthLabel(expenseState.monthFilter) : null;
       container.innerHTML = `<div class="empty-state">
         <span class="emoji">💸</span>
-        No expenses yet<div class="sub">Log your first one above.</div>
+        ${scopeLabel ? `No expenses in ${scopeLabel}` : 'No expenses yet'}<div class="sub">${scopeLabel ? 'Try a different month.' : 'Log your first one above.'}</div>
       </div>`;
       return;
     }
@@ -1771,6 +1848,7 @@
 
   function renderExpensesView(){
     renderExpenseKpis();
+    renderMonthlyBreakdown();
     renderExpenseChart();
     renderExpenseList();
   }
@@ -1807,6 +1885,19 @@
     });
     document.getElementById('expenseNoteInput').addEventListener('keydown', (e) => {
       if(e.key === 'Enter'){ e.preventDefault(); handleAddExpense(); }
+    });
+
+    document.getElementById('monthlyBreakdownList').addEventListener('click', (e) => {
+      const btn = e.target.closest('.month-row');
+      if(!btn) return;
+      const key = btn.dataset.month;
+      expenseState.monthFilter = (expenseState.monthFilter === key) ? null : key;
+      renderExpensesView();
+    });
+
+    document.getElementById('clearMonthFilterBtn').addEventListener('click', () => {
+      expenseState.monthFilter = null;
+      renderExpensesView();
     });
   }
 
